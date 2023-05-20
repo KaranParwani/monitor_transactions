@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        form {
+            width: 600px;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group-text {
+            background-color: #e9ecef;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            color: #fff;
+            padding: 8px 16px;
+        }
+
+        .btn-primary:hover {
+            background-color: #0069d9;
+        }
+    </style>
+    <title>Monitor Ethereum</title>
+  </head>
+  <body>
+    <form>
+        <div class="input-group mb-3">
+            <span class="input-group-text">Transaction Address</span>
+            <input type="text" class="form-control" id="eth_address"
+                   placeholder="Please enter your Transaction Address">
+        </div>
+        <div class="button-group">
+            <button type="button" class="btn btn-primary"
+                    id="start_button" onclick="toggleMonitoring()">Start</button>
+            <button type="button" class="btn btn-primary" id="seen_button">Seen</button>
+        </div>
+        <div class="d-flex">
+            <!-- Additional content for the d-flex div -->
+        </div>
+    </form>
+    <script>
+
+        const apiEndpoint = 'http://localhost:8001';
+        
+        var toggle_button = document.getElementById('start_button'); 
+        var monitoringEnabled = true; 
+        const parentElement = document.querySelector('.d-flex');
+        const eth_address = document.getElementById('eth_address');
+        
+        function toggleMonitoring(){
+
+            if (monitoringEnabled){ 
+                if (!(eth_address.value.trim() === '')){
+
+                        toggle_button.textContent = 'Stop';
+                        
+                        const fragment = new DocumentFragment();
+
+                        const textElement = document.createElement('strong');
+                        textElement.textContent = 'Monitoring KEY transactions';
+                        fragment.appendChild(textElement);
+                        
+                        const spinner = document.createElement('div');
+                        spinner.classList.add('spinner-border', 'ms-md-2');
+                        spinner.setAttribute('role', 'status');
+                        spinner.setAttribute('aria-hidden', 'true');
+                        fragment.appendChild(spinner);
+
+                        parentElement.appendChild(fragment);
+                        
+                        fetch(apiEndpoint + '/health')
+                            .then(response => response.json())
+                            .then(response => {
+                            if (response.status === "ok") {
+
+                                fetch(apiEndpoint + '/monitor/start/' + eth_address.value.trim(), {
+                                     method:'POST'
+                                })
+                                .then(response => response.json())
+                                .then(response => {
+                                    if (response.ok) {
+                                        console.log('Monitoring started');
+                                    } else {
+                                        parentElement.innerHTML = "<strong> FAILED TO START MONITORING </strong>";
+                                    }
+                                })
+                                .catch(error => {
+                                    parentElement.innerHTML = "<strong> ERROR : " 
+                                                        + error + "</strong>";
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            parentElement.innerHTML = "<strong> BACKEND IS NOT AVAILABLE : " 
+                                                      + apiEndpoint + "</strong>";
+                        });
+                } else {
+                    alert('Please enter Transaction Adress');
+                }
+            } else {
+                toggle_button.textContent = 'Start';
+                console.log('Monitoring stopped');
+                parentElement.innerHTML = "";
+                fetch(apiEndpoint + '/monitor/stop', {
+                        method:'GET'
+                })
+                .then(response => response.json())
+                .then(response => {
+                    console.log(response)
+                    if (response.ok) {
+                        console.log('Monitoring started');
+                    } else {
+                        parentElement.innerHTML = "<strong> MONITORING STOPPED </strong>";
+                    }
+                })
+                .catch(error => {
+                    parentElement.innerHTML = "<strong> ERROR : " 
+                                        + error + "</strong>";
+                });
+            }
+            monitoringEnabled = !monitoringEnabled;
+        }        
+
+
+        seen_button.addEventListener('click', () => {
+    const transactionAddress = eth_address.value.trim();
+    if (transactionAddress !== '') {
+        fetch(apiEndpoint + '/monitor/seen/' + transactionAddress)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const transactions = data.transactions || [];
+                    let htmlContent = '';
+                    if (transactions.length > 0) {
+                        htmlContent += '<strong>Transaction Details:</strong><br>';
+                        for (let i = 0; i < transactions.length; i++) {
+                            const transaction = transactions[i];
+                            htmlContent += `
+                                <ul>
+                                    <li>Transaction ID: ${transaction.id}</li>
+                                    <li>Amount: ${transaction.amount}</li>
+                                    <li>Sender: ${transaction.sender}</li>
+                                    <li>Receiver: ${transaction.receiver}</li><br>
+                                </ul>
+                            `;
+                        }
+                    } else {
+                        htmlContent = 'No transactions found.';
+                    }
+                    parentElement.innerHTML = htmlContent;
+                } else {
+                    parentElement.innerHTML = '<strong>Error:</strong> Failed to retrieve transaction details.';
+                }
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+            });
+    } else {
+        alert('Please enter Transaction Address');
+    }
+});
+
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
+  </body>
+</html>
